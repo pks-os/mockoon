@@ -127,21 +127,13 @@ export class MockoonServer extends (EventEmitter as new () => TypedEmitter<Serve
   public start(): void {
     const requestListener = this.createRequestListener();
 
-    const routes = this.getRoutesOfEnvironment();
-    const webSocketRoutes = routes.filter((route) => {
-      const routePath = preparePath(
-        this.environment.endpointPrefix,
-        route.endpoint
-      );
-
-      return (
-        route.type === RouteType.WS &&
-        !this.options.disabledRoutes?.some(
-          (disabledRoute) =>
-            route.uuid === disabledRoute || routePath.includes(disabledRoute)
-        )
-      );
-    });
+    const webSocketRoutes = routesFromFolder(
+      this.environment.rootChildren,
+      this.environment.folders,
+      this.environment.routes,
+      this.options.disabledRoutes,
+      [RouteType.WS]
+    );
 
     // create https or http server instance
     if (this.environment.tlsOptions.enabled && !this.options.disableTls) {
@@ -576,24 +568,6 @@ export class MockoonServer extends (EventEmitter as new () => TypedEmitter<Serve
   };
 
   /**
-   * Returns all defined routes in the setup environment.
-   */
-  private getRoutesOfEnvironment(): Route[] {
-    if (
-      !this.environment.rootChildren ||
-      this.environment.rootChildren.length < 1
-    ) {
-      return [];
-    }
-
-    return routesFromFolder(
-      this.environment.rootChildren,
-      this.environment.folders,
-      this.environment.routes
-    );
-  }
-
-  /**
    * Generate an environment routes and attach to running server
    *
    * @param server - server on which attach routes
@@ -610,7 +584,8 @@ export class MockoonServer extends (EventEmitter as new () => TypedEmitter<Serve
       this.environment.rootChildren,
       this.environment.folders,
       this.environment.routes,
-      this.options.disabledRoutes
+      this.options.disabledRoutes,
+      [RouteType.HTTP, RouteType.CRUD]
     );
 
     routes.forEach((declaredRoute: Route) => {
@@ -910,7 +885,8 @@ export class MockoonServer extends (EventEmitter as new () => TypedEmitter<Serve
 
       // resolve file location
       let filePath = templateParser(
-        enabledRouteResponse.filePath.replace(/\\/g, '/')
+        // replace backslashes with forward slashes, but not if followed by a dot (to allow helpers with paths containing properties with dots: e.g. {{queryParam 'path.prop\.with\.dots'}})
+        enabledRouteResponse.filePath.replace(/\\(?!\.)/g, '/')
       );
       filePath = resolvePathFromEnvironment(
         filePath,
@@ -1453,7 +1429,8 @@ export class MockoonServer extends (EventEmitter as new () => TypedEmitter<Serve
 
       let filePath = TemplateParser({
         shouldOmitDataHelper: false,
-        content: callback.filePath.replace(/\\/g, '/'),
+        // replace backslashes with forward slashes, but not if followed by a dot (to allow helpers with paths containing properties with dots: e.g. {{queryParam 'path.prop\.with\.dots'}})
+        content: callback.filePath.replace(/\\(?!\.)/g, '/'),
         environment: this.environment,
         processedDatabuckets: this.processedDatabuckets,
         globalVariables: this.globalVariables,
@@ -1603,7 +1580,8 @@ export class MockoonServer extends (EventEmitter as new () => TypedEmitter<Serve
     try {
       let filePath = TemplateParser({
         shouldOmitDataHelper: false,
-        content: routeResponse.filePath.replace(/\\/g, '/'),
+        // replace backslashes with forward slashes, but not if followed by a dot (to allow helpers with paths containing properties with dots: e.g. {{queryParam 'path.prop\.with\.dots'}})
+        content: routeResponse.filePath.replace(/\\(?!\.)/g, '/'),
         environment: this.environment,
         processedDatabuckets: this.processedDatabuckets,
         globalVariables: this.globalVariables,
